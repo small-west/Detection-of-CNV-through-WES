@@ -1,0 +1,33 @@
+
+#fastq to fasta in CJ008 and CJ010
+fq2fa --merge --filter CJ008_NDHE08580_unclassified_R1.fastq CJ008_NDHE08580_unclassified_R2.fastq CJ008_NDHE08580_unclassified.fa
+
+#idba_ud
+idba_ud --mink 20 --maxk 150 --step 10 --num_threads 15 -r CJ010_NDHE08592_unclassified.fa -o denovo_CJ010/ &
+
+#bwa mapping
+~/biosoft/bwa-0.7.17/bwa mem -t 20 ~/human_genome/Homo_sapiens_assembly38.fasta local-contig-140.fa -o CJ008_denovo.sam
+
+#awk filteration
+#unmapped reads
+bioawk -c sam -H 'and($flag,4)' CJ008_denovo.sam >CJ008_unmapped.sam
+#map to chr22q11.21(17400001-21700000)
+awk '{if ($3=="chr22" && $4>=17400001 && $4<=21700000) print $0}' CJ008_denovo.sam > CJ008_chr22.sam
+
+#map 150bp reads to chr22q11.21
+#bwa index
+awk '{print ">"$1"\n"$10}' CJ008_chr22.sam >CJ008_chr22.fa 
+~/biosoft/bwa-0.7.17/bwa index CJ008_chr22.fa 
+#map 150bp to chr22q11.21_denovo
+ ~/biosoft/bwa-0.7.17/bwa mem -t 20 ~/data/kraken_result/denovo_CJ008/chr22q11.21/CJ008_chr22.fa ../CJ008_NDHE08580_unclassified_R1.fastq ../CJ008_NDHE08580_unclassified_R2.fastq -o 150map2chr22.sam &
+#filtertion 
+bioawk -c sam -H '!and($flag,4)' 150map2chr22.sam >mappedchr22.sam
+
+#把denovo拼接中比对不上的reads和150bp比对到22q11.21的比对
+#bwa对150bp比对到22q11.21的建立索引
+awk '{print ">"$1"\n"$10}' mappedchr22.sam >mappedchr22.fa
+~/biosoft/bwa-0.7.17/bwa index mappedchr22.fa
+#bwa将未比对到基因组的部分和22q11.21比对起来
+~/biosoft/bwa-0.7.17/bwa mem -t 20 ~/data/kraken_result/denovo_CJ008/mappedchr22/mappedchr22.fa CJ008_unmapped.fa -o aligned.sam
+
+
