@@ -4,4 +4,4 @@
 记录下毕设做的项目吧，不成熟之作
 
 流程一览：
-测序数据质控（fastq）->map到参考基因组预处理（bam）->XHMM和GATK分别call CNV
+测序数据质控（fastq）->map到参考基因组预处理（bam）->XHMM和GATK分别call CNV（vcf）
