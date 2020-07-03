@@ -1,0 +1,61 @@
+#流程：fastqc->multiqc->trimmomatic->kraken->fastqc->multiqc
+
+#fastqc批量查看数据质量
+#!/bin/bash
+for each in `ls -d ~/data/raw_data/raw_data/CJ0*`
+do
+	cd ${each}
+	input=`ls $each/CJ0*`
+	fastqc $input -o /data/home/zxy/data/qc/fastqc_restult -t 20
+done
+
+
+#multiqc查看
+multiqc fastqc_result/
+
+
+#trimmomatic去接头
+#!/bin/bash
+set -x
+Path=~/data/raw_data/raw_data
+Outputpath=~/data/qc/trim
+for each in `ls -d ~/data/raw_data/raw_data/CJ0*`
+do
+	Filename=${each##*/}
+	trimmomatic PE -threads 10 -phred33 \
+	$Path/$Filename/${Filename}_1.fq $Path/$Filename/${Filename}_2.fq \
+	$Outputpath/${Filename}_1_clean_p.fq.gz $Outputpath/${Filename}_1_clean_up.fq.gz \
+	$Outputpath/${Filename}_2_clean_p.fq.gz $Outputpath/${Filename}_2_clean_up.fq.gz \
+	ILLUMINACLIP:/data/home/zxy/miniconda3/pkgs/trimmomatic-0.39-1/share/trimmomatic-0.39-1/adapters/TruSeq3-PE.fa:2:30:10 \
+	LEADING:3 TRAILING:3 SLIDINGWINDOW:4:15 MINLEN:50
+done
+
+
+#kraken去污染
+#!/bin/bash
+kraken_database=/data/program/Annotation/kraken_database/
+
+kraken_analysis(){
+##input is paired file
+	tempt=${1##*/}
+	fileName=${tempt%_1*}
+	kraken --db $kraken_database \
+		--fastq-input --gzip-compressed $1 $2 \
+		--out-fmt paired \
+		--fastq-output \
+		--unclassified-out ${3}/${fileName}_unclassified \
+		--classified-out ${3}/${fileName}_classified \
+	 	--paired \
+		--threads 40 \
+		--output ${3}/${fileName}.kraken
+kraken-report --db $kraken_database ${3}/${fileName}.kraken > ${3}/${fileName}.report
+}
+
+for each in `ls -d ~/data/qc/trim/CJ0*_1_clean_p.fq.gz`
+do
+	input=${each%_1*}
+	echo ${input}
+	kraken_analysis ${input}_1_clean_p.fq.gz ${input}_2_clean_p.fq.gz ~/data/kraken_result
+done
+
+#将unclassified文件重复fastqc和multiqc对比处理前后质量
